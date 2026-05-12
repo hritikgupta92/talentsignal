@@ -23,7 +23,7 @@ export function useAiEnhancer() {
         body: input,
       })
 
-      if (error) throw error
+      if (error) throw await getFunctionError(error)
       if (!data?.bio) throw new Error('AI response was empty.')
 
       return data.bio
@@ -33,4 +33,21 @@ export function useAiEnhancer() {
   }
 
   return { enhanceBio, isGenerating }
+}
+
+async function getFunctionError(error: unknown) {
+  if (isFunctionHttpError(error)) {
+    try {
+      const body = (await error.context.json()) as { error?: string }
+      if (body.error) return new Error(body.error)
+    } catch {
+      return error
+    }
+  }
+
+  return error
+}
+
+function isFunctionHttpError(error: unknown): error is Error & { context: Response } {
+  return error instanceof Error && 'context' in error && error.context instanceof Response
 }

@@ -12,6 +12,13 @@ interface EnhanceBioRequest {
   domains?: string[]
 }
 
+interface SupabaseAuthUser {
+  id: string
+}
+
+const FEATURE_NAME = 'enhance-recruiter-bio'
+const DAILY_LIMIT = 5
+
 if (!globalThis.Deno?.serve) {
   throw new Error('enhance-recruiter-bio must run as a Supabase Edge Function, not in the React browser app.')
 }
@@ -31,6 +38,38 @@ globalThis.Deno.serve(async (request) => {
       console.error('Missing OPENAI_API_KEY secret')
       return json({ error: 'OPENAI_API_KEY is not configured in Supabase secrets.' }, 500)
     }
+
+    const supabaseUrl = globalThis.Deno.env.get('SUPABASE_URL')
+    const supabaseAnonKey = globalThis.Deno.env.get('SUPABASE_ANON_KEY')
+    const authorization = request.headers.get('Authorization')
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Missing Supabase Edge Function environment variables')
+      return json({ error: 'Supabase function environment is not configured.' }, 500)
+    }
+
+    if (!authorization) {
+      return json({ error: 'Login required to use AI improve.' }, 401)
+    }
+
+    const authUser = await getAuthenticatedUser(supabaseUrl, supabaseAnonKey, authorization)
+    if (!authUser) {
+      return json({ error: 'Invalid or expired session.' }, 401)
+    }
+
+    const usage = await getDailyUsage(supabaseUrl, supabaseAnonKey, authorization, authUser.id)
+    if (usage >= DAILY_LIMIT) {
+      return json(
+        {
+          error: `Daily AI improve limit reached. Try again tomorrow.`,
+          limit: DAILY_LIMIT,
+          used: usage,
+        },
+        429,
+      )
+    }
+
+    await recordAiUsage(supabaseUrl, supabaseAnonKey, authorization, authUser.id)
 
     const payload = (await request.json()) as EnhanceBioRequest
     const bio = payload.bio?.trim() ?? ''
@@ -111,6 +150,71 @@ function extractOutputText(data: Record<string, unknown>) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+async function getAuthenticatedUser(supabaseUrl: string, supabaseAnonKey: string, authorization: string) {
+  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: {
+      Authorization: authorization,
+      apikey: supabaseAnonKey,
+    },
+  })
+
+  if (!response.ok) {
+    console.error('Supabase auth user lookup failed', response.status)
+    return null
+  }
+
+  const user = (await response.json()) as Partial<SupabaseAuthUser>
+  return typeof user.id === 'string' ? { id: user.id } : null
+}
+
+async function getDailyUsage(supabaseUrl: string, supabaseAnonKey: string, authorization: string, userId: string) {
+  const today = new Date()
+  today.setUTCHours(0, 0, 0, 0)
+  const url = new URL(`${supabaseUrl}/rest/v1/ai_usage_events`)
+  url.searchParams.set('select', 'id')
+  url.searchParams.set('user_id', `eq.${userId}`)
+  url.searchParams.set('feature', `eq.${FEATURE_NAME}`)
+  url.searchParams.set('created_at', `gte.${today.toISOString()}`)
+  url.searchParams.set('limit', String(DAILY_LIMIT))
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: authorization,
+      apikey: supabaseAnonKey,
+    },
+  })
+
+  if (!response.ok) {
+    const body = await response.text()
+    console.error('AI usage lookup failed', response.status, body)
+    throw new Error('Unable to check AI usage limit.')
+  }
+
+  const rows = await response.json()
+  return Array.isArray(rows) ? rows.length : 0
+}
+
+async function recordAiUsage(supabaseUrl: string, supabaseAnonKey: string, authorization: string, userId: string) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/ai_usage_events`, {
+    method: 'POST',
+    headers: {
+      Authorization: authorization,
+      apikey: supabaseAnonKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      user_id: userId,
+      feature: FEATURE_NAME,
+    }),
+  })
+
+  if (!response.ok) {
+    const body = await response.text()
+    console.error('AI usage insert failed', response.status, body)
+    throw new Error('Unable to record AI usage.')
+  }
 }
 
 function json(body: unknown, status = 200) {

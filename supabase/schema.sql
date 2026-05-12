@@ -9,6 +9,7 @@ drop function if exists public.ensure_current_user(public.user_role, text);
 drop function if exists public.add_recruiter_hiring_tag(uuid, text);
 drop function if exists public.remove_recruiter_hiring_tag(uuid, uuid);
 
+drop table if exists public.ai_usage_events cascade;
 drop table if exists public.follows cascade;
 drop table if exists public.active_jobs cascade;
 drop table if exists public.profile_activities cascade;
@@ -107,6 +108,16 @@ create table public.follows (
   unique (jobseeker_id, recruiter_profile_id)
 );
 
+create table public.ai_usage_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  feature text not null,
+  created_at timestamptz not null default now()
+);
+
+create index ai_usage_events_user_feature_created_idx
+  on public.ai_usage_events (user_id, feature, created_at desc);
+
 alter table public.users enable row level security;
 alter table public.recruiter_profiles enable row level security;
 alter table public.experiences enable row level security;
@@ -115,6 +126,7 @@ alter table public.recruiter_hiring_tags enable row level security;
 alter table public.active_jobs enable row level security;
 alter table public.profile_activities enable row level security;
 alter table public.follows enable row level security;
+alter table public.ai_usage_events enable row level security;
 
 create or replace function public.handle_new_auth_user()
 returns trigger
@@ -444,6 +456,12 @@ create policy "Users can read own follows" on public.follows
 
 create policy "Users can unfollow recruiters" on public.follows
   for delete using (auth.uid() = jobseeker_id);
+
+create policy "Users can read own AI usage" on public.ai_usage_events
+  for select using (auth.uid() = user_id);
+
+create policy "Users can insert own AI usage" on public.ai_usage_events
+  for insert with check (auth.uid() = user_id);
 
 insert into storage.buckets (id, name, public)
 values ('avatars', 'avatars', true)

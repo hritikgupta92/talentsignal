@@ -70,6 +70,7 @@ Tables:
 - `recruiter_hiring_tags`: many-to-many tag mapping
 - `active_jobs`: lightweight active role showcase managed by recruiters
 - `follows`: jobseeker follow graph
+- `ai_usage_events`: per-user AI feature usage tracking for daily rate limits
 
 Storage:
 
@@ -89,6 +90,8 @@ The visual direction blends LinkedIn trust, Wellfound talent marketplace clarity
 ## AI Feature
 
 The dashboard includes an AI bio enhancer backed by a Supabase Edge Function at `supabase/functions/enhance-recruiter-bio`. The browser calls the function with `supabase.functions.invoke`, and the function calls OpenAI server-side using `gpt-4o-mini` with a small output cap so `OPENAI_API_KEY` is never exposed and token cost stays low.
+
+The Edge Function enforces a simple authenticated usage limit of 5 AI bio improvements per user per UTC day. Usage is tracked in `ai_usage_events`, keeping the personal-project cost profile predictable without paid infrastructure.
 
 ## Execution Roadmap
 
@@ -139,6 +142,7 @@ Deploy to Netlify with:
 - Publish directory: `dist`
 - Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 - Supabase secret: `OPENAI_API_KEY`
+- Edge Function uses Supabase-provided `SUPABASE_URL` and `SUPABASE_ANON_KEY` to verify sessions and enforce AI rate limits
 
 `netlify.toml` includes the SPA redirect.
 
