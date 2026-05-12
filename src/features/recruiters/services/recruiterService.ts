@@ -1,5 +1,5 @@
 import { supabase } from '../../../services/supabase'
-import type { Experience, HiringStatus, HiringTag, RecruiterProfile } from '../../../types/recruiter'
+import type { ActiveJob, Experience, HiringStatus, HiringTag, RecruiterProfile, UserRole } from '../../../types/recruiter'
 
 const recruiterSelect = `
   *,
@@ -87,6 +87,7 @@ type SupabaseRecruiterRow = {
     company: string
     location: string | null
     seniority: string | null
+    is_active?: boolean | null
     sort_order: number
   }>
   profile_activities?: Array<{
@@ -139,13 +140,14 @@ function mapRecruiterProfile(row: SupabaseRecruiterRow): RecruiterProfile {
     activeJobs:
       row.active_jobs
         ?.slice()
-        .sort((a, b) => a.sort_order - b.sort_order)
+        .sort((a, b) => b.sort_order - a.sort_order)
         .map((job) => ({
           id: job.id,
           title: job.title,
           company: job.company,
           location: job.location ?? '',
           seniority: job.seniority ?? '',
+          isActive: job.is_active ?? true,
         })) ?? [],
     activities:
       row.profile_activities
@@ -160,10 +162,15 @@ function mapRecruiterProfile(row: SupabaseRecruiterRow): RecruiterProfile {
   }
 }
 
-export async function getMyRecruiterProfile(userId: string, fallbackEmail: string, fallbackName: string): Promise<RecruiterProfile> {
+export async function getMyRecruiterProfile(
+  userId: string,
+  fallbackEmail: string,
+  fallbackName: string,
+  role: UserRole,
+): Promise<RecruiterProfile> {
   if (!supabase) throw new Error('Supabase is not configured.')
 
-  await ensurePublicUser(userId, fallbackEmail, fallbackName)
+  await ensurePublicUser(userId, fallbackEmail, fallbackName, role)
 
   const { data, error } = await supabase
     .from('recruiter_profiles')
@@ -326,6 +333,56 @@ export async function deleteExperience(profileId: string, experienceId: string) 
   if (error) throw error
 }
 
+export async function createActiveJob(profileId: string, input: Omit<ActiveJob, 'id'>) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+
+  const { data, error } = await supabase
+    .from('active_jobs')
+    .insert({
+      recruiter_profile_id: profileId,
+      title: input.title,
+      company: input.company,
+      location: input.location,
+      seniority: input.seniority,
+      is_active: input.isActive ?? true,
+      sort_order: Math.floor(Date.now() / 1000),
+    })
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return mapActiveJob(data)
+}
+
+export async function updateActiveJob(profileId: string, jobId: string, input: Omit<ActiveJob, 'id'>) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+
+  const { data, error } = await supabase
+    .from('active_jobs')
+    .update({
+      title: input.title,
+      company: input.company,
+      location: input.location,
+      seniority: input.seniority,
+      is_active: input.isActive ?? true,
+    })
+    .eq('id', jobId)
+    .eq('recruiter_profile_id', profileId)
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return mapActiveJob(data)
+}
+
+export async function deleteActiveJob(profileId: string, jobId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+
+  const { error } = await supabase.from('active_jobs').delete().eq('id', jobId).eq('recruiter_profile_id', profileId)
+
+  if (error) throw error
+}
+
 function mapExperience(row: {
   id: string
   company: string
@@ -346,11 +403,29 @@ function mapExperience(row: {
   }
 }
 
-async function ensurePublicUser(userId: string, email: string, fullName: string) {
+function mapActiveJob(row: {
+  id: string
+  title: string
+  company: string
+  location?: string | null
+  seniority?: string | null
+  is_active?: boolean | null
+}): ActiveJob {
+  return {
+    id: row.id,
+    title: row.title,
+    company: row.company,
+    location: row.location ?? '',
+    seniority: row.seniority ?? '',
+    isActive: row.is_active ?? true,
+  }
+}
+
+async function ensurePublicUser(userId: string, email: string, fullName: string, role: UserRole) {
   if (!supabase) throw new Error('Supabase is not configured.')
 
   const { error } = await supabase.rpc('ensure_current_user', {
-    selected_role: 'recruiter',
+    selected_role: role,
     selected_full_name: fullName || email.split('@')[0],
   })
   if (error) {

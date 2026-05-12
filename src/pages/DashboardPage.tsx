@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Bot, CheckCircle2, Eye, Radio, Sparkles, TrendingUp } from 'lucide-react'
+import { Bot, CheckCircle2, Eye, Radio, Search, Sparkles, TrendingUp } from 'lucide-react'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
@@ -10,8 +10,10 @@ import { Skeleton } from '../components/ui/skeleton'
 import { AvatarUploader } from '../features/recruiters/components/AvatarUploader'
 import { ExperienceEditor } from '../features/recruiters/components/ExperienceEditor'
 import { HiringDomainTags } from '../features/recruiters/components/HiringDomainTags'
+import { JobOpeningsManager } from '../features/recruiters/components/JobOpeningsManager'
 import { useMyRecruiterProfile } from '../features/recruiters/hooks/useMyRecruiterProfile'
 import { useAiEnhancer } from '../hooks/useAiEnhancer'
+import { useAuthStore } from '../store/authStore'
 import type { RecruiterProfile } from '../types/recruiter'
 
 type Notice = { message: string; type: 'success' | 'error' } | null
@@ -27,11 +29,20 @@ export function DashboardPage() {
     uploadAvatar,
     saveExperience,
     removeExperience,
+    saveActiveJob,
+    removeActiveJob,
   } = useMyRecruiterProfile()
   const [draft, setDraft] = useState<Partial<RecruiterProfile>>({})
   const [notice, setNotice] = useState<Notice>(null)
   const [isSaving, setIsSaving] = useState(false)
   const { enhanceBio, isGenerating } = useAiEnhancer()
+  const appUser = useAuthStore((state) => state.appUser)
+  const isJobseeker = appUser?.role === 'jobseeker'
+  const domainsLabel = isJobseeker ? 'Job search domains' : 'Hiring domains'
+  const workspaceLabel = isJobseeker ? 'Jobseeker workspace' : 'Recruiter workspace'
+  const dashboardDescription = isJobseeker
+    ? 'Manage your profile, job search focus, and credibility signals from one dashboard.'
+    : 'Manage credibility, hiring focus, and publishing quality from one dashboard.'
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -126,12 +137,10 @@ export function DashboardPage() {
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <Badge className="border-emerald-100 bg-emerald-50 text-emerald-700">
-            <Radio size={13} /> Recruiter workspace
+            {isJobseeker ? <Search size={13} /> : <Radio size={13} />} {workspaceLabel}
           </Badge>
           <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">Profile command center</h1>
-          <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600">
-            Manage credibility, hiring focus, and publishing quality from one Supabase-backed dashboard.
-          </p>
+          <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600">{dashboardDescription}</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <Link to={`/r/${profile.slug}`}>
@@ -199,7 +208,7 @@ export function DashboardPage() {
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-xl font-bold text-slate-950">Edit public profile</h2>
-                <p className="mt-1 text-sm text-slate-500">Changes save to your Supabase recruiter profile.</p>
+                <p className="mt-1 text-sm text-slate-500">Changes save to your profile.</p>
               </div>
               <Button onClick={handleSaveProfile} disabled={isSaving}>
                 {isSaving ? 'Saving...' : 'Save profile'}
@@ -230,7 +239,7 @@ export function DashboardPage() {
                 <Textarea className="mt-2" value={draft.bio ?? ''} onChange={(event) => setDraft({ ...draft, bio: event.target.value })} />
               </div>
               <div>
-                <label className="text-sm font-semibold text-slate-700">Hiring domains</label>
+                <label className="text-sm font-semibold text-slate-700">{domainsLabel}</label>
                 <div className="mt-2">
                   <HiringDomainTags tags={profile.tags} onAdd={addTag} onRemove={removeTag} />
                 </div>
@@ -254,6 +263,19 @@ export function DashboardPage() {
               />
             </CardContent>
           </Card>
+
+          {!isJobseeker ? (
+            <Card>
+              <CardContent>
+                <JobOpeningsManager
+                  jobs={profile.activeJobs}
+                  onSave={saveActiveJob}
+                  onDelete={removeActiveJob}
+                  onStatus={(message, type) => setNotice({ message, type })}
+                />
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
       </div>
     </section>

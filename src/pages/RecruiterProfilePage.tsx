@@ -9,6 +9,7 @@ import { Skeleton } from '../components/ui/skeleton'
 import { ExperienceTimeline } from '../features/recruiters/components/ExperienceTimeline'
 import { followRecruiter, getRecruiterBySlug } from '../features/recruiters/services/recruiterService'
 import { formatNumber } from '../lib/utils'
+import { useAuthStore } from '../store/authStore'
 import type { RecruiterProfile } from '../types/recruiter'
 
 export function RecruiterProfilePage() {
@@ -16,6 +17,8 @@ export function RecruiterProfilePage() {
   const [profile, setProfile] = useState<RecruiterProfile | undefined>()
   const [isLoading, setIsLoading] = useState(true)
   const [isFollowing, setIsFollowing] = useState(false)
+  const appUser = useAuthStore((state) => state.appUser)
+  const domainsTitle = appUser?.role === 'jobseeker' ? 'Job Domains' : 'Hiring domains'
 
   useEffect(() => {
     getRecruiterBySlug(slug)
@@ -152,7 +155,7 @@ export function RecruiterProfilePage() {
         <aside className="space-y-6">
           <Card>
             <CardHeader>
-              <h2 className="text-xl font-bold text-slate-950">Hiring domains</h2>
+              <h2 className="text-xl font-bold text-slate-950">{domainsTitle}</h2>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {profile.tags.map((tag) => (

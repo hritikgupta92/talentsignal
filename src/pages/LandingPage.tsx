@@ -93,7 +93,7 @@ export function LandingPage() {
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-sm font-semibold text-indigo-200">Built for fast, credible signal</p>
-              <h2 className="mt-2 text-2xl font-bold">Supabase-backed, focused, Netlify deployable.</h2>
+              <h2 className="mt-2 text-2xl font-bold">Focused, credible, and Netlify deployable.</h2>
             </div>
             <div className="flex flex-wrap gap-3 text-sm text-slate-200">
               {['Free auth', 'RLS policies', 'Storage avatars', 'AI bio assist'].map((item) => (

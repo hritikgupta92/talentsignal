@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   addHiringTag,
+  createActiveJob,
   createExperience,
+  deleteActiveJob,
   deleteExperience,
   getMyRecruiterProfile,
   removeHiringTag,
+  updateActiveJob,
   updateExperience,
   updateRecruiterProfile,
   uploadRecruiterAvatar,
 } from '../services/recruiterService'
 import { useAuthStore } from '../../../store/authStore'
-import type { Experience, RecruiterProfile } from '../../../types/recruiter'
+import type { ActiveJob, Experience, RecruiterProfile } from '../../../types/recruiter'
 
 export function useMyRecruiterProfile() {
   const { appUser, user } = useAuthStore()
@@ -28,7 +31,7 @@ export function useMyRecruiterProfile() {
     setIsLoading(true)
     setError(null)
     try {
-      const nextProfile = await getMyRecruiterProfile(user.id, appUser.email, appUser.fullName)
+      const nextProfile = await getMyRecruiterProfile(user.id, appUser.email, appUser.fullName, appUser.role)
       setProfile(nextProfile)
     } catch (profileError) {
       setError(getErrorMessage(profileError))
@@ -155,6 +158,59 @@ export function useMyRecruiterProfile() {
     }
   }
 
+  async function saveActiveJob(input: Omit<ActiveJob, 'id'>, id?: string) {
+    if (!profile) return
+
+    if (id) {
+      const previous = profile
+      setProfile({
+        ...profile,
+        activeJobs: profile.activeJobs.map((item) => (item.id === id ? { ...input, id } : item)),
+      })
+      try {
+        const updated = await updateActiveJob(profile.id, id, input)
+        setProfile((current) =>
+          current
+            ? { ...current, activeJobs: newestJobsFirst(current.activeJobs.map((item) => (item.id === id ? updated : item))) }
+            : current,
+        )
+      } catch (jobError) {
+        setProfile(previous)
+        throw jobError
+      }
+      return
+    }
+
+    const tempJob = { ...input, id: `temp-${crypto.randomUUID()}` }
+    setProfile({ ...profile, activeJobs: newestJobsFirst([tempJob, ...profile.activeJobs]) })
+    try {
+      const created = await createActiveJob(profile.id, input)
+      setProfile((current) =>
+        current
+          ? {
+              ...current,
+              activeJobs: newestJobsFirst(current.activeJobs.map((item) => (item.id === tempJob.id ? created : item))),
+            }
+          : current,
+      )
+    } catch (jobError) {
+      setProfile(profile)
+      throw jobError
+    }
+  }
+
+  async function removeActiveJob(id: string) {
+    if (!profile) return
+    const previous = profile
+    setProfile({ ...profile, activeJobs: profile.activeJobs.filter((item) => item.id !== id) })
+    try {
+      await deleteActiveJob(profile.id, id)
+    } catch (jobError) {
+      setProfile(previous)
+      throw jobError
+    }
+  }
+
   return {
     profile,
     isLoading,
@@ -166,6 +222,8 @@ export function useMyRecruiterProfile() {
     uploadAvatar,
     saveExperience,
     removeExperience,
+    saveActiveJob,
+    removeActiveJob,
   }
 }
 
@@ -174,6 +232,14 @@ function newestFirst(items: Experience[]) {
     if (a.isCurrent && !b.isCurrent) return -1
     if (!a.isCurrent && b.isCurrent) return 1
     return b.startDate.localeCompare(a.startDate)
+  })
+}
+
+function newestJobsFirst(items: ActiveJob[]) {
+  return items.slice().sort((a, b) => {
+    const aTemp = a.id.startsWith('temp-') ? 1 : 0
+    const bTemp = b.id.startsWith('temp-') ? 1 : 0
+    return bTemp - aTemp
   })
 }
 

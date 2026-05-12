@@ -6,6 +6,8 @@ Recruiter public profile platform MVP for a frontend engineering take-home. Tale
 
 This is intentionally not a full hiring platform. The MVP focuses on the highest-signal surface area: recruiter credibility, discovery, following, and a polished profile management workflow.
 
+Recruiters can also manage a lightweight set of active job openings from the dashboard. This keeps the platform useful for candidate engagement without expanding into a full ATS.
+
 ## Backend Recommendation
 
 | Option | Speed | Auth | Free tier | DX | Recommendation |
@@ -51,7 +53,7 @@ The data boundary sits behind `features/recruiters/services/recruiterService.ts`
 - `/` landing page
 - `/auth` mock role selection and auth entry
 - `/auth` includes Login and Signup modes with role-aware onboarding
-- `/dashboard` recruiter dashboard
+- `/dashboard` role-aware dashboard for profile editing, domains, experience, and recruiter job openings
 - `/discover` jobseeker discovery page
 - `/r/:slug` public recruiter profile
 
@@ -66,7 +68,7 @@ Tables:
 - `experiences`: recruiter work history
 - `hiring_tags`: reusable hiring domains and filters
 - `recruiter_hiring_tags`: many-to-many tag mapping
-- `active_jobs`: lightweight active role showcase
+- `active_jobs`: lightweight active role showcase managed by recruiters
 - `follows`: jobseeker follow graph
 
 Storage:
@@ -148,6 +150,7 @@ AI assistance was used to accelerate product scoping, generate a senior-level im
 
 - Login/Signup use Supabase Auth.
 - Dashboard edits persist through Supabase tables, storage, and RPC functions.
+- Recruiter job openings support add, edit, and delete flows, but intentionally stop short of applications, candidate pipelines, or ATS workflow.
 - AI bio enhancement runs through a Supabase Edge Function so the OpenAI key stays server-side.
 - shadcn/ui is represented through local shadcn-style primitives to keep setup fast and fully controlled.
 

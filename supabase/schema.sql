@@ -387,11 +387,43 @@ create policy "Recruiters delete own tag links" on public.recruiter_hiring_tags
 
 create policy "Active jobs readable with public profile" on public.active_jobs
   for select using (
-    is_active = true
-    and exists (
+    exists (
       select 1 from public.recruiter_profiles rp
       where rp.id = recruiter_profile_id
-        and (rp.is_published = true or rp.user_id = auth.uid())
+        and (
+          rp.user_id = auth.uid()
+          or (rp.is_published = true and is_active = true)
+        )
+    )
+  );
+
+create policy "Recruiters insert own active jobs" on public.active_jobs
+  for insert with check (
+    exists (
+      select 1 from public.recruiter_profiles rp
+      where rp.id = recruiter_profile_id and rp.user_id = auth.uid()
+    )
+  );
+
+create policy "Recruiters update own active jobs" on public.active_jobs
+  for update using (
+    exists (
+      select 1 from public.recruiter_profiles rp
+      where rp.id = recruiter_profile_id and rp.user_id = auth.uid()
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.recruiter_profiles rp
+      where rp.id = recruiter_profile_id and rp.user_id = auth.uid()
+    )
+  );
+
+create policy "Recruiters delete own active jobs" on public.active_jobs
+  for delete using (
+    exists (
+      select 1 from public.recruiter_profiles rp
+      where rp.id = recruiter_profile_id and rp.user_id = auth.uid()
     )
   );
 

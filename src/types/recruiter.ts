@@ -24,6 +24,7 @@ export interface ActiveJob {
   company: string
   location: string
   seniority: string
+  isActive?: boolean
 }
 
 export interface Activity {
